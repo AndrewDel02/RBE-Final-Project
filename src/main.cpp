@@ -16,7 +16,7 @@ enum States {IDLE, WALL_FOLLOW, LINE_FOLLOW, TURN_90, DRIVE_STRAIGHT, SPIN, TEST
 States state = TESTING;
 // instantiate classes
 EventTimer timer;
-Button buttonA(14);
+Button buttonC(17);
 Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
 
@@ -37,7 +37,7 @@ volatile int16_t countsLeft;
 volatile int16_t countsRight;
 
 void setup() {
-  buttonA.Init();
+  buttonC.Init();
   configTimer();
 }
 
@@ -47,7 +47,7 @@ void loop() {
       // set constant speed
       setPidSpeed(0, 0);
       // check transition condition;
-      if (buttonA.CheckButtonPress()) timer.Start(1000);
+      if (buttonC.CheckButtonPress()) timer.Start(1000);
       if (timer.CheckExpired()) {
         state = WALL_FOLLOW;
         timer.Cancel();
@@ -114,7 +114,7 @@ void loop() {
 
     case TESTING: {
       static bool run = false;
-      if (buttonA.CheckButtonPress()) run = !run;
+      if (buttonC.CheckButtonPress()) run = !run;
       run ? setPidSpeed(10, 10) : setPidSpeed(0, 0);
       break;
     }
