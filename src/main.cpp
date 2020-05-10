@@ -2,6 +2,7 @@
 #include <Zumo32U4.h>
 #include <event_timer.h>
 #include "button.h"
+#include "ultrasonic.h"
 
 #define turn90 500
 #define arbitrarySpeed 20
@@ -39,6 +40,7 @@ volatile int16_t countsRight;
 void setup() {
   buttonC.Init();
   configTimer();
+  configUltrasonic();
 }
 
 void loop() {
@@ -113,9 +115,10 @@ void loop() {
     }
 
     case TESTING: {
-      static bool run = false;
-      if (buttonC.CheckButtonPress()) run = !run;
-      run ? setPidSpeed(10, 10) : setPidSpeed(0, 0);
+      // static bool run = false;
+      // if (buttonC.CheckButtonPress()) run = !run;
+      // run ? setPidSpeed(10, 10) : setPidSpeed(0, 0);
+      float dist = getDist();
       break;
     }
   }

@@ -14,11 +14,6 @@
 
 #include <Arduino.h>
 
-// 
-// class Ultrasonic {
-//
-// }
-
 volatile uint16_t pulseStart = 0;
 volatile uint16_t pulseEnd = 0;
 
@@ -38,12 +33,8 @@ uint32_t PING_INTERVAL = 250; //ms
 void CommandPing(int trigPin);
 
 
-void setup()
+void configUltrasonic()
 {
-  Serial.begin(115200);
-  while(!Serial) {} //you must open the Serial Monitor to get past this step!
-  Serial.println("Hi!");
-
   noInterrupts(); //disable interupts while we mess with the control registers
 
   //sets timer 3 to normal mode (16-bit, fast counter)
@@ -51,19 +42,15 @@ void setup()
 
   interrupts(); //re-enable interrupts
 
-  //note that the Arduino machinery has already set the prescaler elsewhere
-  //so we'll print out the value of the register to figure out what it is
-  Serial.print("TCCR3B = ");
-  Serial.println(TCCR3B);
-
   pinMode(trigPin, OUTPUT);
   pinMode(13, INPUT); //explicitly make 13 an input, since it defaults to OUTPUT in Arduino World (LED)
 
   lastPing = millis();
 }
 
-void loop()
+float getDist()
 {
+  static float prevDist = 0;
   //schedule pings roughly every PING_INTERVAL milliseconds
   if(millis() - lastPing > PING_INTERVAL)
   {
@@ -76,12 +63,6 @@ void loop()
     //update the state to IDLE
     pulseState = PLS_IDLE;
 
-    /*
-     * Calculate the length of the pulse (in timer counts!). Note that we turn off
-     * interrupts for a VERY short period so that there is no risk of the ISR changing
-     * pulseEnd or pulseStart. As noted in class, the way the state machine works, this
-     * isn't a problem, but best practice is to ensure that no side effects can occur.
-     */
     noInterrupts();
     uint16_t pulseLengthTimerCounts = pulseEnd - pulseStart;
     interrupts();
@@ -93,16 +74,10 @@ void loop()
 
     //EDIT THIS LINE AFTER YOU CALIBRATE THE SENSOR
     float distancePulse = pulseLengthUS / 58.0;    //distance in cm
-
-    Serial.print(millis());
-    Serial.print('\t');
-    Serial.print(pulseLengthTimerCounts);
-    Serial.print('\t');
-    Serial.print(pulseLengthUS);
-    Serial.print('\t');
-    Serial.print(distancePulse);
-    Serial.print('\n');
+    prevDist = distancePulse;
+    Serial.println(prevDist);
   }
+  return prevDist;
 }
 
 /*
