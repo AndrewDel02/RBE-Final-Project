@@ -12,6 +12,11 @@
 // PID constants
 #define speedKp 12
 #define speedKi 1
+// wall Pid constants
+#define targetDist 20.0
+#define wallKp .85
+#define wallKd 7.5
+#define baseSpeed 25.0
 
 enum States {IDLE, WALL_FOLLOW, LINE_FOLLOW, TURN_90, DRIVE_STRAIGHT, SPIN, TESTING};
 States state = TESTING;
@@ -22,9 +27,8 @@ Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
 
 // declare prototypes
-void setPidSpeed(float targetLeft, float targetRight); // TODO
-float readWallDistance(); // TODO
-float wallSpeed(float distance); // TODO
+void setPidSpeed(float targetLeft, float targetRight);
+void wallPid(float distance);
 bool lineDetected(); // TODO
 bool irDetected(); // TODO
 int readLineSensor(); // TODO
@@ -36,6 +40,7 @@ void configTimer();
 bool readyToPID;
 volatile int16_t countsLeft;
 volatile int16_t countsRight;
+long count = 0;
 
 void setup() {
   buttonC.Init();
@@ -58,11 +63,9 @@ void loop() {
 
     case WALL_FOLLOW: {
       // measure val
-      float distance = readWallDistance();
+      float distance = getDist();
       // PID calculation here
-      float speeds = wallSpeed(distance);
-      // set PID speed target
-      setPidSpeed(0,0); // placeholder
+      wallPid(distance);
       // check transition condition
       if (lineDetected()) {
         state = TURN_90;
@@ -115,10 +118,10 @@ void loop() {
     }
 
     case TESTING: {
-      // static bool run = false;
-      // if (buttonC.CheckButtonPress()) run = !run;
-      // run ? setPidSpeed(10, 10) : setPidSpeed(0, 0);
       float dist = getDist();
+      static bool run = false;
+      if (buttonC.CheckButtonPress()) run = !run;
+      run ? wallPid(dist) : setPidSpeed(0, 0);
       break;
     }
   }
@@ -171,12 +174,49 @@ void setPidSpeed(float targetLeft, float targetRight) {
   motors.setSpeeds(effortLeft, effortRight); //up to you to add the right motor
 }
 
-float readWallDistance() {
-  return 0.0;
+void wallPid(float distance) {
+  static float prevWallError = 0;
+  static float prevDist = 0;
+  static float prevLeftSpeed = 0;
+  static float prevRightSpeed = 0;
+  // function is called continuously but distance is only updated occaisionally, if distance hasn't changed just uses previous speed
+  if (distance == prevDist) {
+    setPidSpeed(prevLeftSpeed, prevRightSpeed);
+    return;
+  }
+  prevDist = distance;
+  float wallError = targetDist - distance;
+
+  float deltaError = wallError - prevWallError;
+
+  float adjError = wallKp * wallError + wallKd * deltaError;
+
+  if (adjError < -5) {
+    adjError = -5;
+  } else if (adjError > 10) {
+    adjError = 10;
+  }
+
+  float leftspeed = baseSpeed + adjError/2;
+  float rightSpeed = baseSpeed - adjError/2;
+
+  prevLeftSpeed = leftspeed;
+  prevRightSpeed = rightSpeed;
+
+  setPidSpeed(leftspeed, rightSpeed);
+  Serial.print(wallError);
+  Serial.print('\t');
+  Serial.print(wallError-prevWallError);
+  Serial.print('\t');
+  Serial.print(adjError);
+  Serial.print('\t');
+  Serial.print(leftspeed);
+  Serial.print('\t');
+  Serial.print(rightSpeed);
+  Serial.println('\t');
+  prevWallError = wallError;
 }
-float wallSpeed(float distance) {
-  return 0.0;
-}
+
 bool lineDetected() {
   return false;
 }

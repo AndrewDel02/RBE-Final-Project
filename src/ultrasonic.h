@@ -1,17 +1,3 @@
-/*
- * Code for interfacing a 32U4 with the SR-HR04 ultrasonic sensor.
- *
- * This uses the Input Capture feature of the ATmega32U4 (e.g., Leonardo) to get precision readings.
- * Specifically, you must connect the pulse width pin to pin 13 (ICP3) on the 32U4.
- * You are welcome to use whatever pin you want for triggering a ping, just be sure to change it from the default.
- *
- * The input capture first looks for a rising edge, then a falling edge
- * The difference between the two is the pulse width, which is a direct measurement
- * of the (round trip) timer counts to hear the echo.
- *
- * But note that the timing is in timer counts, which must be converted to time.
- */
-
 #include <Arduino.h>
 
 volatile uint16_t pulseStart = 0;
@@ -75,7 +61,6 @@ float getDist()
     //EDIT THIS LINE AFTER YOU CALIBRATE THE SENSOR
     float distancePulse = pulseLengthUS / 58.0;    //distance in cm
     prevDist = distancePulse;
-    Serial.println(prevDist);
   }
   return prevDist;
 }
