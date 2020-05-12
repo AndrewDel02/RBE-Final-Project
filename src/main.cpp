@@ -4,8 +4,8 @@
 #include "button.h"
 #include "ultrasonic.h"
 
-#define turn90 500
-#define arbitrarySpeed 20
+#define turn90 800
+#define arbitrarySpeed 15
 #define time360 200
 // one encoder measures faster than the other, use this to compensate
 #define wheelBias 0
@@ -14,12 +14,12 @@
 #define speedKi 1
 // wall Pid constants
 #define targetDist 20.0
-#define wallKp .85
-#define wallKd 7.5
+#define wallKp .5
+#define wallKd 5.0
 #define baseSpeed 20.0
 //line Pid constants
-#define lineKp .5
-#define lineKd 1.0
+#define lineKp 0.1
+#define lineKd 0.02
 
 enum States {IDLE, WALL_FOLLOW, LINE_FOLLOW, TURN_90, DRIVE_STRAIGHT, SPIN, TESTING};
 States state = IDLE;
@@ -83,23 +83,23 @@ void loop() {
 
     case LINE_FOLLOW: {
       // line Pid calc
-      void linePid();
+      linePid();
       // check transition condition
-      if (irDetected()) {
-        state = TURN_90;
-        timer.Start(turn90);
-      }
+      // if (irDetected()) {
+      //   state = TURN_90;
+      //   timer.Start(turn90);
+      // }
+      if (buttonC.CheckButtonPress()) state = IDLE;
       break;
     }
 
     case TURN_90: {
       static bool doneOnce = false;
       // set constant speed
-      setPidSpeed(arbitrarySpeed+5, -arbitrarySpeed); // want this turn to be a little obtuse to better line up w/ line
+      setPidSpeed(15, -8); // want this turn to be a little obtuse
       // check transition condition
       if (timer.CheckExpired()) {
-        // doneOnce ? state = DRIVE_STRAIGHT : state = LINE_FOLLOW;
-        state = IDLE;
+        state = LINE_FOLLOW;
         timer.Cancel();
       }
       break;
@@ -127,18 +127,11 @@ void loop() {
     }
 
     case TESTING: {
-      // float dist = getDist();
+      float dist = getDist();
       static bool run = false;
       if (buttonC.CheckButtonPress()) run = !run;
-      run ? linePid() : setPidSpeed(0, 0);
-      lineSensors.read(lineSensorValues, true);
-      // uint16_t position = lineSensors.readLine(lineSensorValues);
-      // if (count%500==0) {
-      //   Serial.print('a');
-      //   Serial.print('\t');
-      //   Serial.println();
-      // }
-      // count++;
+      run ? wallPid(dist) : setPidSpeed(0, 0);
+
       break;
     }
   }
@@ -237,11 +230,13 @@ void linePid() {
   int lineError = lineSensorValues[1] - lineSensorValues[3];
   static int prevError = 0;
   int deltaError = lineError - prevError;
+
+  float adjError = lineKp * lineError - lineKd * deltaError;
+
   prevError = lineError;
 
-  float adjError = lineKp * lineError - lineKd * prevError;
 
-  setPidSpeed(baseSpeed + adjError, baseSpeed);
+  setPidSpeed(baseSpeed + adjError, baseSpeed - adjError);
 
 }
 
