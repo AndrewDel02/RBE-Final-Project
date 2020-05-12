@@ -29,6 +29,7 @@ Button buttonC(17);
 Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
 Zumo32U4LineSensors lineSensors;
+Zumo32U4ProximitySensors proxSensors;
 
 
 // declare prototypes
@@ -52,6 +53,7 @@ void setup() {
   configTimer();
   configUltrasonic();
   lineSensors.initFiveSensors();
+  proxSensors.initFrontSensor();
 }
 
 void loop() {
@@ -85,22 +87,23 @@ void loop() {
       // line Pid calc
       linePid();
       // check transition condition
-      // if (irDetected()) {
-      //   state = TURN_90;
-      //   timer.Start(turn90);
-      // }
-      if (buttonC.CheckButtonPress()) state = IDLE;
+      if (irDetected()) {
+        Serial.println("message");
+        state = IDLE;
+        // timer.Start(turn90);
+      }
+      if (buttonC.CheckButtonPress()) state = IDLE; // Estop
       break;
     }
 
     case TURN_90: {
-      static bool doneOnce = false;
       // set constant speed
-      setPidSpeed(15, -8); // want this turn to be a little obtuse
+      setPidSpeed(15, -8); // want this turn to be a little obtuse to get a good line position
       // check transition condition
       if (timer.CheckExpired()) {
         state = LINE_FOLLOW;
         timer.Cancel();
+        setPidSpeed(0, 0);
       }
       break;
     }
@@ -127,10 +130,8 @@ void loop() {
     }
 
     case TESTING: {
-      float dist = getDist();
-      static bool run = false;
-      if (buttonC.CheckButtonPress()) run = !run;
-      run ? wallPid(dist) : setPidSpeed(0, 0);
+
+      if (irDetected()) Serial.println("message");
 
       break;
     }
@@ -196,7 +197,10 @@ void wallPid(float distance) {
   }
   prevDist = distance;
   float wallError = targetDist - distance;
-
+// float dist = getDist();
+      // static bool run = false;
+      // if (buttonC.CheckButtonPress()) run = !run;
+      // run ? wallPid(dist) : setPidSpeed(0, 0);
   float deltaError = wallError - prevWallError;
 
   float adjError = wallKp * wallError + wallKd * deltaError;
@@ -241,6 +245,7 @@ void linePid() {
 }
 
 bool irDetected() {
+  if (proxSensors.readBasicFront()) return true;
   return false;
 }
 
