@@ -16,23 +16,27 @@
 #define targetDist 20.0
 #define wallKp .85
 #define wallKd 7.5
-#define baseSpeed 25.0
+#define baseSpeed 20.0
+//line Pid constants
+#define lineKp .5
+#define lineKd 1.0
 
 enum States {IDLE, WALL_FOLLOW, LINE_FOLLOW, TURN_90, DRIVE_STRAIGHT, SPIN, TESTING};
-States state = TESTING;
+States state = IDLE;
 // instantiate classes
 EventTimer timer;
 Button buttonC(17);
 Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
+Zumo32U4LineSensors lineSensors;
+
 
 // declare prototypes
 void setPidSpeed(float targetLeft, float targetRight);
 void wallPid(float distance);
-bool lineDetected(); // TODO
+bool lineDetected();
+void linePid();
 bool irDetected(); // TODO
-int readLineSensor(); // TODO
-float lineSpeeds(int lineVals); // TODO
 bool angleToFlat(); // TODO
 void configTimer();
 
@@ -41,11 +45,13 @@ bool readyToPID;
 volatile int16_t countsLeft;
 volatile int16_t countsRight;
 long count = 0;
+uint16_t lineSensorValues[5];
 
 void setup() {
   buttonC.Init();
   configTimer();
   configUltrasonic();
+  lineSensors.initFiveSensors();
 }
 
 void loop() {
@@ -59,6 +65,7 @@ void loop() {
         state = WALL_FOLLOW;
         timer.Cancel();
       }
+      break;
     }
 
     case WALL_FOLLOW: {
@@ -71,30 +78,31 @@ void loop() {
         state = TURN_90;
         timer.Start(turn90);
       }
+      break;
     }
 
     case LINE_FOLLOW: {
-      // measure val
-      int lineVals = readLineSensor();
-      // PID calculation here
-      float speeds = lineSpeeds(lineVals);
-      // set PID speed target
-      setPidSpeed(0,0); // placeholder
+      // line Pid calc
+      void linePid();
       // check transition condition
       if (irDetected()) {
         state = TURN_90;
         timer.Start(turn90);
       }
+      break;
     }
 
     case TURN_90: {
       static bool doneOnce = false;
       // set constant speed
-      setPidSpeed(arbitrarySpeed, 0);
+      setPidSpeed(arbitrarySpeed+5, -arbitrarySpeed); // want this turn to be a little obtuse to better line up w/ line
       // check transition condition
       if (timer.CheckExpired()) {
-        doneOnce ? state = DRIVE_STRAIGHT : state = LINE_FOLLOW;
+        // doneOnce ? state = DRIVE_STRAIGHT : state = LINE_FOLLOW;
+        state = IDLE;
+        timer.Cancel();
       }
+      break;
     }
 
     case DRIVE_STRAIGHT: {
@@ -105,6 +113,7 @@ void loop() {
         state = SPIN;
         timer.Start(time360);
       }
+      break;
     }
 
     case SPIN: {
@@ -118,10 +127,18 @@ void loop() {
     }
 
     case TESTING: {
-      float dist = getDist();
+      // float dist = getDist();
       static bool run = false;
       if (buttonC.CheckButtonPress()) run = !run;
-      run ? wallPid(dist) : setPidSpeed(0, 0);
+      run ? linePid() : setPidSpeed(0, 0);
+      lineSensors.read(lineSensorValues, true);
+      // uint16_t position = lineSensors.readLine(lineSensorValues);
+      // if (count%500==0) {
+      //   Serial.print('a');
+      //   Serial.print('\t');
+      //   Serial.println();
+      // }
+      // count++;
       break;
     }
   }
@@ -204,31 +221,34 @@ void wallPid(float distance) {
   prevRightSpeed = rightSpeed;
 
   setPidSpeed(leftspeed, rightSpeed);
-  Serial.print(wallError);
-  Serial.print('\t');
-  Serial.print(wallError-prevWallError);
-  Serial.print('\t');
-  Serial.print(adjError);
-  Serial.print('\t');
-  Serial.print(leftspeed);
-  Serial.print('\t');
-  Serial.print(rightSpeed);
-  Serial.println('\t');
   prevWallError = wallError;
 }
 
 bool lineDetected() {
+  lineSensors.read(lineSensorValues, true);
+  for (int i=0; i<5; i++) {
+    if (lineSensorValues[i] <= 300) return true;
+  }
   return false;
 }
+
+void linePid() {
+  lineSensors.read(lineSensorValues, true);
+  int lineError = lineSensorValues[1] - lineSensorValues[3];
+  static int prevError = 0;
+  int deltaError = lineError - prevError;
+  prevError = lineError;
+
+  float adjError = lineKp * lineError - lineKd * prevError;
+
+  setPidSpeed(baseSpeed + adjError, baseSpeed);
+
+}
+
 bool irDetected() {
   return false;
 }
-int readLineSensor() {
-  return 0;
-}
-float lineSpeeds(int lineVals) {
-  return 1.0;
-}
+
 bool angleToFlat() {
   return false;
 }
