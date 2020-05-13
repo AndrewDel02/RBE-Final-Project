@@ -3,6 +3,7 @@
 #include <event_timer.h>
 #include "button.h"
 #include "ultrasonic.h"
+#include "filter.h"
 
 #define turn90 800
 #define turn2 475
@@ -23,12 +24,13 @@
 #define lineKd 0.02
 
 enum States {IDLE, WALL_FOLLOW, LINE_FOLLOW, TURN_90, DRIVE_STRAIGHT, SPIN, TESTING, TURN2, WAIT_FOR_OK};
-States state = IDLE;
+States state = TESTING;
 // instantiate classes
 EventTimer timer;
 Button buttonC(17);
 Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
+ComplementaryFilter filter;
 Zumo32U4LineSensors lineSensors;
 Zumo32U4ProximitySensors proxSensors;
 
@@ -38,7 +40,7 @@ void setPidSpeed(float targetLeft, float targetRight);
 void wallPid(float distance);
 bool lineDetected();
 void linePid();
-bool irDetected(); // TODO
+bool irDetected();
 bool angleToFlat(); // TODO
 void configTimer();
 
@@ -55,6 +57,7 @@ void setup() {
   configUltrasonic();
   lineSensors.initFiveSensors();
   proxSensors.initFrontSensor();
+  filter.init();
 }
 
 void loop() {
@@ -152,7 +155,7 @@ void loop() {
     case TESTING: {
       setPidSpeed(0, 0);
 
-      if (buttonC.CheckButtonPress()) state = DRIVE_STRAIGHT;
+      if (filter.CalcAngle()) Serial.println(millis());
 
       break;
     }
