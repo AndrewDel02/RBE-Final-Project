@@ -22,14 +22,14 @@ will usually require calibration. */
 #include <Zumo32U4.h>
 
 class ComplementaryFilter {
-  const float K = 0.75;
+  const float K = .5;
   int prevTime = 0;
   float prevEstAngle = 0;
   LSM303 compass;
   L3G gyro;
 public:
   void init();
-  bool CalcAngle(float& obsAngle, float& est);
+  bool CalcAngle(float& est);
 };
 
 
@@ -73,7 +73,7 @@ void ComplementaryFilter::init() {
   gyro.writeReg(L3G::CTRL1, newCtrl1Gyro); // send to register
 }
 
-bool ComplementaryFilter::CalcAngle(float& obsAngle, float& est) {
+bool ComplementaryFilter::CalcAngle(float& est) {
   bool retVal = false;
   uint8_t status = compass.readReg(LSM303::STATUS_A);
   uint8_t newReading = status & 0x80; // clear everything except MSB
@@ -87,7 +87,7 @@ bool ComplementaryFilter::CalcAngle(float& obsAngle, float& est) {
   float deltaT = (currentTime - prevTime) / 100000.0;
   prevTime = currentTime;
 
-  obsAngle = atan2(-compass.a.x, compass.a.z); // calc obs
+  float obsAngle = atan2(-compass.a.x, compass.a.z); // calc obs
 
   float gammaY = (gyro.g.y-168.7) / 57.3; // converty to rad/s offset bias
 

@@ -7,7 +7,6 @@
 
 #define turn90 800
 #define turn2 475
-#define arbitrarySpeed 15
 #define time360 200
 // one encoder measures faster than the other, use this to compensate
 #define wheelBias 0
@@ -24,7 +23,7 @@
 #define lineKd 0.02
 
 enum States {IDLE, WALL_FOLLOW, LINE_FOLLOW, TURN_90, DRIVE_STRAIGHT, SPIN, TESTING, TURN2, WAIT_FOR_OK};
-States state = TESTING;
+States state = IDLE;
 // instantiate classes
 EventTimer timer;
 Button buttonC(17);
@@ -41,8 +40,9 @@ void wallPid(float distance);
 bool lineDetected();
 void linePid();
 bool irDetected();
-bool angleToFlat(); // TODO
+bool angleToFlat();
 void configTimer();
+bool checkSpinDone();
 
 // global variables, try to minimize
 bool readyToPID;
@@ -50,6 +50,7 @@ volatile int16_t countsLeft;
 volatile int16_t countsRight;
 long count = 0;
 uint16_t lineSensorValues[5];
+bool angle = false;
 
 void setup() {
   buttonC.Init();
@@ -113,51 +114,52 @@ void loop() {
 
     case TURN2: {
       // set constant speed
-      setPidSpeed(-20, 20);
+      setPidSpeed(-20, 19);
       // check transition condition
       if (timer.CheckExpired()) {
         timer.Cancel();
         state = WAIT_FOR_OK;
+        setPidSpeed(0, 0);
       }
       break;
     }
 
     case WAIT_FOR_OK: {
+      static bool doneOnce = false;
       // chill
       setPidSpeed(0, 0);
       // check transition condition
-      if (irDetected()) state = DRIVE_STRAIGHT;
+      if (irDetected() && !doneOnce) {
+        state = DRIVE_STRAIGHT;
+        doneOnce = true;
+      }
       break;
     }
 
     case DRIVE_STRAIGHT: {
       // set constant speed
-      setPidSpeed(20.5, 20);
+      setPidSpeed(20, 20);
       // check transition condition
       if (angleToFlat()) {
-        state = SPIN;
-        timer.Start(time360);
+        state = WAIT_FOR_OK;
       }
-      if (buttonC.CheckButtonPress()) state = IDLE; // e stop
+
+      if (buttonC.CheckButtonPress()) state = WAIT_FOR_OK; // e stop
+      // if (irDetected()) state = WAIT_FOR_OK; // estop
       break;
     }
 
     case SPIN: {
       // set constant speed
-      setPidSpeed(arbitrarySpeed, -arbitrarySpeed);
-      // check transition condition
-      if (timer.CheckExpired()) {
-        timer.Cancel();
-        state = IDLE;
-      }
+      setPidSpeed(15,-15);
+      // check for transition condition
+
     }
 
     case TESTING: {
       setPidSpeed(0, 0);
-      float obsAngle;
-      float est;
 
-      if (filter.CalcAngle(obsAngle, est)) Serial.println(est);
+;
 
       break;
     }
@@ -277,7 +279,27 @@ bool irDetected() {
 }
 
 bool angleToFlat() {
-  return false;
+  float est;
+  bool retVal = false;
+  static bool onIncline = false;
+  bool newReading = filter.CalcAngle(est); // get new est angle
+  static int threshold = -30;
+
+  if (!newReading) return false; // if nothing new don't bother calc
+
+  if (est < threshold && !onIncline) {
+    threshold = 10;
+    onIncline = true;
+    Serial.println(est);
+  }
+
+  if (est > threshold && onIncline) {
+    threshold = -30;
+    onIncline = false;
+    retVal = true;
+  }
+
+  return retVal;
 }
 
 
