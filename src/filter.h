@@ -22,18 +22,19 @@ will usually require calibration. */
 #include <Zumo32U4.h>
 
 class ComplementaryFilter {
-public:
+  const float K = 0.75;
+  int prevTime = 0;
+  float prevEstAngle = 0;
   LSM303 compass;
   L3G gyro;
-  char report[120];
+public:
   void init();
-  bool CalcAngle();
+  bool CalcAngle(float& obsAngle, float& est);
 };
 
 
 
-void ComplementaryFilter::init()
-{
+void ComplementaryFilter::init() {
   Wire.begin();
 
   if (!compass.init())
@@ -63,33 +64,38 @@ void ComplementaryFilter::init()
   gyro.enableDefault();
 
 
-  uint8_t ctrl1 = compass.readReg(LSM303::CTRL1);
+  uint8_t ctrl1 = compass.readReg(LSM303::CTRL1); // read register
   uint8_t newCtrl1 = (ctrl1 & 0x0F) | 0x60; // clear first 4 bits, then set them to 6, keep the rest intact
   compass.writeReg(LSM303::CTRL1, newCtrl1); // send to register
+
+  uint8_t ctrl1Gyro = gyro.readReg(L3G::CTRL1); // read register
+  uint8_t newCtrl1Gyro = (ctrl1Gyro & 0x0F) | 0xB0; // clear first 4 bits, then set to B
+  gyro.writeReg(L3G::CTRL1, newCtrl1Gyro); // send to register
 }
 
-bool ComplementaryFilter::CalcAngle() {
+bool ComplementaryFilter::CalcAngle(float& obsAngle, float& est) {
   bool retVal = false;
   uint8_t status = compass.readReg(LSM303::STATUS_A);
   uint8_t newReading = status & 0x80; // clear everything except MSB
   if (newReading) {
     compass.read();
+    gyro.read();
     retVal = true;
   }
+
+  int currentTime = millis();
+  float deltaT = (currentTime - prevTime) / 100000.0;
+  prevTime = currentTime;
+
+  obsAngle = atan2(-compass.a.x, compass.a.z); // calc obs
+
+  float gammaY = (gyro.g.y-168.7) / 57.3; // converty to rad/s offset bias
+
+  float predAngle = prevEstAngle + (gammaY * deltaT); // calc predicted
+
+  est = (K * predAngle) + ((1-K)*obsAngle) * 57.3; // ComplementaryFilter
+
+  prevEstAngle = est; // store for next iteration
+
   return retVal;
 }
-
-// void loop()
-// {
-//   compass.read();
-//   gyro.read();
-//
-//   snprintf_P(report, sizeof(report),
-//     PSTR("A: %6d %6d %6d    M: %6d %6d %6d    G: %6d %6d %6d"),
-//     compass.a.x, compass.a.y, compass.a.z,
-//     compass.m.x, compass.m.y, compass.m.z,
-//     gyro.g.x, gyro.g.y, gyro.g.z);
-//   Serial.println(report);
-//
-//   delay(100);
-// }

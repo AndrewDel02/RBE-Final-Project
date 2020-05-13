@@ -154,8 +154,10 @@ void loop() {
 
     case TESTING: {
       setPidSpeed(0, 0);
+      float obsAngle;
+      float est;
 
-      if (filter.CalcAngle()) Serial.println(millis());
+      if (filter.CalcAngle(obsAngle, est)) Serial.println(est);
 
       break;
     }
