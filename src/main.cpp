@@ -5,6 +5,7 @@
 #include "ultrasonic.h"
 
 #define turn90 800
+#define turn2 475
 #define arbitrarySpeed 15
 #define time360 200
 // one encoder measures faster than the other, use this to compensate
@@ -21,7 +22,7 @@
 #define lineKp 0.1
 #define lineKd 0.02
 
-enum States {IDLE, WALL_FOLLOW, LINE_FOLLOW, TURN_90, DRIVE_STRAIGHT, SPIN, TESTING};
+enum States {IDLE, WALL_FOLLOW, LINE_FOLLOW, TURN_90, DRIVE_STRAIGHT, SPIN, TESTING, TURN2, WAIT_FOR_OK};
 States state = IDLE;
 // instantiate classes
 EventTimer timer;
@@ -89,8 +90,8 @@ void loop() {
       // check transition condition
       if (irDetected()) {
         Serial.println("message");
-        state = IDLE;
-        // timer.Start(turn90);
+        state = TURN2;
+        timer.Start(turn2);
       }
       if (buttonC.CheckButtonPress()) state = IDLE; // Estop
       break;
@@ -103,19 +104,38 @@ void loop() {
       if (timer.CheckExpired()) {
         state = LINE_FOLLOW;
         timer.Cancel();
-        setPidSpeed(0, 0);
       }
+      break;
+    }
+
+    case TURN2: {
+      // set constant speed
+      setPidSpeed(-20, 20);
+      // check transition condition
+      if (timer.CheckExpired()) {
+        timer.Cancel();
+        state = WAIT_FOR_OK;
+      }
+      break;
+    }
+
+    case WAIT_FOR_OK: {
+      // chill
+      setPidSpeed(0, 0);
+      // check transition condition
+      if (irDetected()) state = DRIVE_STRAIGHT;
       break;
     }
 
     case DRIVE_STRAIGHT: {
       // set constant speed
-      setPidSpeed(arbitrarySpeed, arbitrarySpeed);
+      setPidSpeed(20.5, 20);
       // check transition condition
       if (angleToFlat()) {
         state = SPIN;
         timer.Start(time360);
       }
+      if (buttonC.CheckButtonPress()) state = IDLE; // e stop
       break;
     }
 
@@ -130,8 +150,9 @@ void loop() {
     }
 
     case TESTING: {
+      setPidSpeed(0, 0);
 
-      if (irDetected()) Serial.println("message");
+      if (buttonC.CheckButtonPress()) state = DRIVE_STRAIGHT;
 
       break;
     }
@@ -245,6 +266,7 @@ void linePid() {
 }
 
 bool irDetected() {
+  proxSensors.lineSensorEmittersOff();
   if (proxSensors.readBasicFront()) return true;
   return false;
 }
